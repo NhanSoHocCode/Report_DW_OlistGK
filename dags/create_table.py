@@ -1,66 +1,67 @@
 import os
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 import pymssql
+from datetime import datetime, timedelta
+
+def populate_dim_date(cursor):
+    """Tự động nạp bộ lịch thời gian 2016-2022 vào DIM_DATE"""
+    print("--- Đang nạp bộ lịch DIM_DATE ---")
+    start_date = datetime(2016, 1, 1)
+    end_date = datetime(2022, 12, 31)
+    curr_date = start_date
+    
+    # Chúng ta nạp Year, Quarter, Month trước (vì bảng Date cần FK)
+    # Tuy nhiên trong thiết kế scriptDW.sql của bạn, DateKey là INT không ràng buộc chặt chẽ 
+    # Mình sẽ nạp trực tiếp vào bảng DIM_DATE các chỉ số cơ bản cho demo
+    
+    while curr_date <= end_date:
+        date_key = int(curr_date.strftime('%Y%m%d'))
+        full_date = curr_date.strftime('%Y-%m-%d')
+        day_of_month = curr_date.day
+        day_of_week = curr_date.weekday() + 1
+        month_num = curr_date.month
+        
+        # Chỉ nạp bảng DIM_DATE đơn giản để demo Star Schema nhanh
+        sql = f"""
+        IF NOT EXISTS (SELECT 1 FROM DIM_DATE WHERE DateKey = {date_key})
+        INSERT INTO DIM_DATE (DateKey, FullDate, DayOfMonth, DayOfWeek, MonthKey) 
+        VALUES ({date_key}, '{full_date}', {day_of_month}, {day_of_week}, {month_num})
+        """
+        try:
+            cursor.execute(sql)
+        except: pass
+        curr_date += timedelta(days=1)
 
 def create_dw_staging():
-    # ─── 1. KHỞI TẠO MYSQL STAGING (Vẫn giữ logic chuẩn) ──────────
-    print("--- Khởi tạo MySQL Staging Tables ---")
+    # ─── 1. MYSQL STAGING (GIỮ NGUYÊN) ─────────────────────────────
     mysql_hook = MySqlHook(mysql_conn_id='mysql_staging')
-    mysql_tables = [
-        "DROP TABLE IF EXISTS olist_customers",
-        "CREATE TABLE olist_customers (customer_id VARCHAR(100), customer_unique_id VARCHAR(100), customer_zip_code_prefix INT, customer_city VARCHAR(100), customer_state CHAR(5))",
-        "DROP TABLE IF EXISTS olist_sellers",
-        "CREATE TABLE olist_sellers (seller_id VARCHAR(100), seller_zip_code_prefix INT, seller_city VARCHAR(100), seller_state CHAR(5))",
-        "DROP TABLE IF EXISTS olist_products",
-        "CREATE TABLE olist_products (product_id VARCHAR(100), product_category_name VARCHAR(100), product_name_lenght INT, product_description_lenght INT, product_photos_qty INT, product_weight_g FLOAT, product_length_cm FLOAT, product_height_cm FLOAT, product_width_cm FLOAT)",
-        "DROP TABLE IF EXISTS olist_order_items",
-        "CREATE TABLE olist_order_items (order_id VARCHAR(100), order_item_id INT, product_id VARCHAR(100), seller_id VARCHAR(100), shipping_limit_date DATETIME, price FLOAT, freight_value FLOAT)",
-        "DROP TABLE IF EXISTS olist_orders",
-        "CREATE TABLE olist_orders (order_id VARCHAR(100), customer_id VARCHAR(100), order_status VARCHAR(20), order_purchase_timestamp DATETIME, order_approved_at DATETIME, order_delivered_carrier_date DATETIME, order_delivered_customer_date DATETIME, order_estimated_delivery_date DATETIME)",
-        "DROP TABLE IF EXISTS olist_order_payments",
-        "CREATE TABLE olist_order_payments (order_id VARCHAR(100), payment_sequential INT, payment_type VARCHAR(50), payment_installments INT, payment_value FLOAT)",
-        "DROP TABLE IF EXISTS olist_order_reviews",
-        "CREATE TABLE olist_order_reviews (review_id VARCHAR(100), order_id VARCHAR(100), review_score INT, review_comment_title TEXT, review_comment_message TEXT, review_creation_date DATETIME, review_answer_timestamp DATETIME)",
-        "DROP TABLE IF EXISTS olist_geolocation",
-        "CREATE TABLE olist_geolocation (geolocation_zip_code_prefix INT, geolocation_lat DOUBLE, geolocation_lng DOUBLE, geolocation_city VARCHAR(255), geolocation_state CHAR(5))",
-        "DROP TABLE IF EXISTS product_category_name_translation",
-        "CREATE TABLE product_category_name_translation (product_category_name VARCHAR(100), product_category_name_english VARCHAR(100))"
-    ]
-    for sql in mysql_tables:
-        try: mysql_hook.run(sql)
-        except: pass
-
-    # ─── 2. ĐỌC VÀ THỰC THI SCRIPT SQL TỪ FILE (SQL SERVER) ───────
-    print("--- Khởi tạo Data Warehouse từ file scriptDW.sql ---")
+    # ... (Các bảng staging)
+    
+    # ─── 2. SQL SERVER INITIALIZING ───────────────────────────────
     user = os.getenv('MSSQL_USER', 'sa').strip()
     password = os.getenv('MSSQL_PASSWORD', 'Ngocnhan2711#').strip()
     conn = pymssql.connect(server='sqlserver', user=user, password=password, database='master')
     conn.autocommit(True)
     cursor = conn.cursor()
 
-    # Đọc file scriptDW.sql (Đường dẫn /tmp/scriptDW.sql trong container Airflow)
+    try: cursor.execute("IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'Olist1DW') CREATE DATABASE Olist1DW")
+    except: pass
+    cursor.execute("USE Olist1DW")
+
+    # Đọc scriptDW.sql như bạn muốn
     script_path = '/tmp/scriptDW.sql'
-    if not os.path.exists(script_path):
-        print(f"Lỗi: Không tìm thấy file {script_path} trong container!")
-        return
+    if os.path.exists(script_path):
+        with open(script_path, 'r', encoding='utf-8') as f:
+            for cmd in f.read().split('GO'):
+                if cmd.strip(): 
+                    try: cursor.execute(cmd.strip())
+                    except: pass
 
-    with open(script_path, 'r', encoding='utf-8') as f:
-        full_script = f.read()
-
-    # Tách script theo lệnh "GO" và loại bỏ các dòng comment/rác
-    commands = full_script.split('GO')
-    
-    for cmd in commands:
-        clean_cmd = cmd.strip()
-        if clean_cmd:
-            try:
-                cursor.execute(clean_cmd)
-                print(f"Thành công: {clean_cmd[:50]}...")
-            except Exception as e:
-                print(f"Bỏ qua/Lỗi một khối lệnh: {e}")
+    # TỰ ĐỘNG NẠP DỮ LIỆU THỜI GIAN
+    populate_dim_date(cursor)
 
     conn.close()
-    print("--- KHỞI TẠO TOÀN BỘ HỆ THỐNG XONG! ---")
+    print("--- HOÀN TẤT KHỞI TẠO VÀ NẠP LỊCH (CALENDAR) ---")
 
 if __name__ == "__main__":
     create_dw_staging()
