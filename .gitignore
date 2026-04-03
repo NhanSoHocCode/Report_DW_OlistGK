@@ -1,0 +1,22 @@
+# Cấu hình GitIgnore chuyên nghiệp cho dự án Airflow
+
+# Bỏ qua bộ dữ liệu (Vì quá nặng, GitHub không cho up file > 100MB)
+dataset/
+*.csv
+
+# Bỏ qua các file cấu hình nhạy cảm (Mật khẩu, Key)
+.env
+
+# Bỏ qua Log và các file tạm của Airflow
+logs/
+plugins/__pycache__/
+dags/__pycache__/
+**/__pycache__/
+
+# Bỏ qua các file rác của hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Bỏ qua các file tạm của VS Code
+.vscode/
+.gemini/
