@@ -5,7 +5,7 @@
 [![SQLServer](https://img.shields.io/badge/Data%20Warehouse-MS%20SQL%20Server-red?logo=microsoft-sql-server)](https://www.microsoft.com/sql-server/)
 [![Python](https://img.shields.io/badge/ETL%20Engine-Python%203.12-yellow?logo=python)](https://www.python.org/)
 
-Hệ thống xử lý dữ liệu tự động hóa hoàn toàn, tích hợp luồng dữ liệu từ nguồn thô (CSV) qua Staging (MySQL) đến kho lưu trữ tập trung (Data Warehouse) trên SQL Server theo mô hình **Star Schema**.
+Hệ thống xử lý dữ liệu tự động hóa hoàn toàn, tích hợp luồng dữ liệu từ nguồn thô (CSV) qua Staging (MySQL) đến kho lưu trữ tập trung (Data Warehouse) trên SQL Server theo mô hình **Snowflake Schema**.
 
 ---
 
