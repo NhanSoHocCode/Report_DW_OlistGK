@@ -86,4 +86,4 @@ Truy cập `http://localhost:8080` (Airflow), đăng nhập `airflow/airflow`, b
 *   **Payment Optimization**: Tỉ lệ thanh toán thành công theo từng phương thức.
 
 ---
-🚀 *Dự án được thực hiện bởi: [Tên của bạn]*
+🚀 *Dự án được thực hiện bởi: Nhóm 14 - Editer README Dang Ngoc Nhan*
